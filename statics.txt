@@ -1,0 +1,84 @@
+source: 03101453_reverse-
+How_many_steel_in_this_batch: 5
+yolo_detection_quntity: 39
+steel_quantity_list: [37, 31, 39, 36, 37]
+curve_list: [0, 0, 0, 0, 0]
+ok_list: [37, 31, 39, 36, 37]
+bad_contours_list: [2, 8, 0, 3, 2]
+curve_steel_quntity:0
+steel_detail:_1_ok_2_2_ok_3_3_ok_6_4_ok_5_5_ok_7
+cost_time_batch¡G108.281250 s
+Filename: 20220330_161807_1_ok_2_2_ok_3_3_ok_6_4_ok_5_5_ok_7_1.0_0_1.0_150_withlines.jpg
+Alpha: 1.0 Beat:0 Gamma :1.0 Thresold: 150
+------------------------------------
+
+source: 03101453_reverse-
+How_many_steel_in_this_batch: 5
+yolo_detection_quntity: 84
+steel_quantity_list: [79, 67, 82, 77, 81]
+curve_list: [0, 0, 0, 0, 0]
+ok_list: [79, 67, 82, 77, 81]
+bad_contours_list: [5, 17, 2, 7, 3]
+curve_steel_quntity:0
+steel_detail:_1_ok_3_2_ok_3_3_ok_6_4_ok_3_5_ok_7
+cost_time_batch¡G115.421875 s
+Filename: 20220330_163726_1_ok_3_2_ok_3_3_ok_6_4_ok_3_5_ok_7_1.0_0_1.0_150_withlines.jpg
+Alpha: 1.0 Beat:0 Gamma :1.0 Thresold: 150
+------------------------------------
+
+source: 03101453_reverse-
+How_many_steel_in_this_batch: 5
+yolo_detection_quntity: 81
+steel_quantity_list: [75, 64, 78, 75, 78]
+curve_list: [0, 0, 0, 1, 0]
+ok_list: [75, 64, 78, 74, 78]
+bad_contours_list: [6, 17, 3, 6, 3]
+curve_steel_quntity:0
+steel_detail:_1_ok_2_2_ok_3_3_ok_6_4_ok_10_5_ok_7
+cost_time_batch¡G107.859375 s
+Filename: 20220330_164004_1_ok_2_2_ok_3_3_ok_6_4_ok_10_5_ok_7_1.0_0_1.0_150_withlines.jpg
+Alpha: 1.0 Beat:0 Gamma :1.0 Thresold: 150
+------------------------------------
+
+source: 03101453_reverse-
+How_many_steel_in_this_batch: 5
+yolo_detection_quntity: 86
+steel_quantity_list: [81, 69, 84, 79, 83]
+curve_list: [0, 0, 0, 0, 7]
+ok_list: [81, 69, 84, 79, 76]
+bad_contours_list: [5, 17, 2, 7, 3]
+curve_steel_quntity:1
+steel_detail:_1_ok_2_2_ok_3_3_ok_6_4_ok_5_5_cu_7
+cost_time_batch¡G114.562500 s
+Filename: 20220330_164305_1_ok_2_2_ok_3_3_ok_6_4_ok_5_5_cu_7_1.0_0_1.0_150_withlines.jpg
+Alpha: 1.0 Beat:0 Gamma :1.0 Thresold: 150
+------------------------------------
+
+source: 03101453_reverse-
+How_many_steel_in_this_batch: 5
+yolo_detection_quntity: 79
+steel_quantity_list: [74, 65, 77, 74, 77]
+curve_list: [0, 0, 0, 0, 5]
+ok_list: [74, 65, 77, 74, 72]
+bad_contours_list: [5, 14, 2, 5, 2]
+curve_steel_quntity:1
+steel_detail:_1_ok_3_2_ok_3_3_ok_6_4_ok_3_5_cu_7
+cost_time_batch¡G112.171875 s
+Filename: 20220330_165952_1_ok_3_2_ok_3_3_ok_6_4_ok_3_5_cu_7_1.0_0_1.0_150_withlines.jpg
+Alpha: 1.0 Beat:0 Gamma :1.0 Thresold: 150
+------------------------------------
+
+source: 03101453_reverse-
+How_many_steel_in_this_batch: 5
+yolo_detection_quntity: 86
+steel_quantity_list: [82, 71, 85, 79, 83]
+curve_list: [0, 0, 0, 0, 7]
+ok_list: [82, 71, 85, 79, 76]
+bad_contours_list: [4, 15, 1, 7, 3]
+curve_steel_quntity:1
+steel_detail:_1_ok_3_2_ok_3_3_ok_6_4_ok_3_5_cu_8
+cost_time_batch¡G114.171875 s
+Filename: 20220330_171015_1_ok_3_2_ok_3_3_ok_6_4_ok_3_5_cu_8_1.0_0_1.0_150_withlines.jpg
+Alpha: 1.0 Beat:0 Gamma :1.0 Thresold: 150
+------------------------------------
+

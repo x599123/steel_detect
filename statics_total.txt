@@ -1,0 +1,15 @@
+total imference frame 1103 
+ok 5 
+curve0
+total imference frame 918 
+ok 5 
+curve0
+total imference frame 952 
+ok 5 
+curve0
+total imference frame 1029 
+ok 4 
+curve1
+total imference frame 1042 
+ok 4 
+curve1
