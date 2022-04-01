@@ -49,7 +49,7 @@ beta = 0
 gamma = 1.0
 @torch.no_grad()
 
-def point_get_cor(ends,xy):#
+def point_get_cor(ends,xy): # 畫線
     d0, d1 = np.abs(np.diff(ends, axis=0))[0]
     a0, a1 = np.abs(np.diff([ends[0],xy], axis=0))[0]
     if d0 < d1:
@@ -59,68 +59,67 @@ def point_get_cor(ends,xy):#
         else:
             return round(ends[0, 0] + (a1 * slope)), ends[0, 1] + a1
 
-def web_view():
-
+def web_view():# Flask功能
     app = Flask(__name__)
     global web_out,web_in ,save_switch
-    def get_image():
+    def get_image(): # 即時影像 影像處理
         while True:
-            jpeg = cv2.resize(web_out, (400, 490), interpolation=cv2.INTER_NEAREST)
-            ret, jpeg = cv2.imencode('.jpg', jpeg, [int(cv2.IMWRITE_JPEG_QUALITY), 50])
-            jpeg = jpeg.tobytes()
+            jpeg = cv2.resize(web_out, (400, 490), interpolation=cv2.INTER_NEAREST)#resize 圖片400*490
+            ret, jpeg = cv2.imencode('.jpg', jpeg, [int(cv2.IMWRITE_JPEG_QUALITY), 50])#壓縮圖片至jpg 品質設定50%
+            jpeg = jpeg.tobytes()#轉換圖片至bytecode
             yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + jpeg + b'\r\n')
+                   b'Content-Type: image/jpeg\r\n\r\n' + jpeg + b'\r\n')#return 圖片(generator型式)
             time.sleep(0.03)  # my Firefox needs some time to display image / Chrome displays image without it
 
     @app.route("/")
-    def stream():
+    def stream():# 即時影像
         return Response(get_image(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
     def one_image(wb):
-        jpeg = cv2.resize(wb, (400, 490), interpolation=cv2.INTER_NEAREST)
-        ret, jpeg = cv2.imencode('.jpg', jpeg)
-        jpeg = jpeg.tobytes()
-        return jpeg
+        jpeg = cv2.resize(wb, (400, 490), interpolation=cv2.INTER_NEAREST)#resize 圖片400*490
+        ret, jpeg = cv2.imencode('.jpg', jpeg)#壓縮圖片至jpg 品質設定50%
+        jpeg = jpeg.tobytes()#轉換圖片至bytecode
+        return jpeg#return 圖片
 
     @app.route("/out")
-    def out():
+    def out():#return 標記後的圖片
         return Response(one_image(web_out), mimetype="image/jpeg")
 
     @app.route("/in")
-    def webin():
+    def webin():#return 標記前的圖片
         return Response(one_image(web_in), mimetype="image/jpeg")
 
     @app.route("/shutdown")
-    def shutdown():
-        os.system('ps -ef | grep detect_steel_light_stream.py| grep -v grep | awk \'{print $2}\' | xargs kill -9')
+    def shutdown():#關閉程式
+        os.system('ps -ef | grep detect_steel_light_stream.py| grep -v grep | awk \'{print $2}\' | xargs kill -9')#kill 自己本身
         return Response('shutdown')
 
     @app.route("/savestatus")
-    def savestatus():
+    def savestatus():#回傳存檔狀態
         global save_switch
         # exit()
-        return Response(str(save_switch))
+        return Response(str(save_switch))#回傳存檔狀態
 
     @app.route("/saveon")
     def saveon():
         global save_switch
         # exit()
-        save_switch = True
-        return Response(str(save_switch))
+        save_switch = True#存檔開關設開
+        return Response(str(save_switch))#回傳存檔狀態
 
     @app.route("/saveoff")
     def saveoff():
         global save_switch
         # exit()
-        save_switch = False
-        return Response(str(save_switch))
+        save_switch = False#存檔開關設關
+        return Response(str(save_switch))#回傳存檔狀態
 
 
     app.run('0.0.0.0')
-def detect_steel_opencv(y1,img_ori, img ):
+def detect_steel_opencv(y1,img_ori, img ):#畫線算出偏移量
     global contour_threshold, alpha, beta, gamma
     try:
-        res = cv2.convertScaleAbs(img, alpha=alpha, beta=beta)
+        res = cv2.convertScaleAbs(img, alpha=alpha, beta=beta)#補光alpha beta
         lookUpTable = np.empty((1,256), np.uint8)
         for i in range(256):
             lookUpTable[0,i] = np.clip(pow(i / 255.0, gamma) * 255.0, 0, 255)
@@ -289,7 +288,7 @@ def run(weights='best.pt',  # model.pt path(s)
             output_details = interpreter.get_output_details()  # outputs
     imgsz = check_img_size(imgsz, s=stride)  # check image size
 
-    # Dataloader
+    # Dataloader 取得即時影像
     if webcam:
         # view_img = check_imshow()
         cudnn.benchmark = True  # set True to speed up constant image size inference
@@ -309,11 +308,11 @@ def run(weights='best.pt',  # model.pt path(s)
     enum=0
 
     start = time.process_time()
-    for path, img, im0s,imoris, img_oris, vid_cap in dataset:
+    for path, img, im0s,imoris, img_oris, vid_cap in dataset:#img是要餵給yolo辨識的預處理影像 img_oris為未裁切原圖
         curve_steel_quntity=0
         enum=enum+1
-        web_in = im0s[0]
-        web_out = imoris[0]
+        web_in = im0s[0]#im0s為透視轉換圖
+        web_out = imoris[0]#imoris為原圖裁切
         if onnx:
             img = img.astype('float32')
         else:
@@ -325,7 +324,7 @@ def run(weights='best.pt',  # model.pt path(s)
 
         # Inference
         t1 = time_sync()
-        if pt:
+        if pt:#yolo推論 將圖片餵進AI模型
             # visualize = increment_path(save_dir / Path(path).stem, mkdir=True) if visualize else False
             pred = model(img, augment=augment, visualize=visualize)[0]
         elif onnx:
@@ -352,7 +351,7 @@ def run(weights='best.pt',  # model.pt path(s)
             pred[..., 3] *= imgsz[0]  # h
             pred = torch.tensor(pred)
 
-        # NMS
+        # NMS 預測結果處理 找到最佳框
         pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
         t2 = time_sync()
 
@@ -377,7 +376,6 @@ def run(weights='best.pt',  # model.pt path(s)
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
             if len(det):
                 onum = 0
-                # temp1=temp1+1
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
                 # Print results
@@ -396,13 +394,10 @@ def run(weights='best.pt',  # model.pt path(s)
                             onum = onum+1
                             detect_run = True
                             crop_img=crop_one_box(xyxy, im0, file=save_dir / 'crops' / f'{p.stem}_{enum}_{onum}.jpg', BGR=True,)
+                            #yolo框出鋼條取出單根影像
                             #cv2.imwrite('opencv_imori.jpg', imori)
-                            cv2.putText(imori, str(list_xyxy[:, 1]), (10, 30),
-                                        cv2.FONT_HERSHEY_PLAIN, 2,
-                                        (0, 255, 255), 1, cv2.LINE_AA)
                             steel_detect_result=detect_steel_opencv(int(list_xyxy[:, 1]),imori, crop_img)
-                            # if enum == 120:
-                            #     raise RuntimeError
+                            #單根鋼條餵入彎直檢測演算法
                             web_out = imori
                             # cv2.imshow('aav',steel_detect_result[1])
                             # cv2.waitKey(1)
