@@ -703,53 +703,32 @@ def apply_classifier(x, model, img, im0):
 def crop_one_box(xyxy, im, file='image.jpg', gain=1.02, pad=10, square=False, BGR=False, save=False):
     # Save image crop as {file} with crop size multiple {gain} and {pad} pixels. Save and/or return crop
 
-    pts1 = np.float32([[428,0],[551,0],[169,974],[695,973]])
+    pts1 = np.float32([[428,0],[551,0],[169,974],[695,973]])#透視轉換4點
 
-    pts2 = np.float32([[75,0],[632,0],[253,1000],[700,1000]])
-    B = cv2.getPerspectiveTransform(pts2,pts1)
-    xyxy = torch.tensor(xyxy).view(-1, 4)
-    b = xyxy2xywh(xyxy)  # boxes
-    #print(im.shape)
-    screen=np.zeros((1000, 830, 3), dtype="uint8")
-    # print("screen",screen.shape)
-    #im=im[60:1080,250:950]
+    pts2 = np.float32([[75,0],[632,0],[253,1000],[700,1000]])#透視轉換4點
+    B = cv2.getPerspectiveTransform(pts2,pts1)#計算透視反轉換矩陣
+    xyxy = torch.tensor(xyxy).view(-1, 4)# tensor轉list
+    b = xyxy2xywh(xyxy)  # xy to xywh
+    screen = np.zeros((1000, 830, 3), dtype="uint8")
     if square:
         b[:, 2:] = b[:, 2:].max(1)[0].unsqueeze(1)  # attempt rectangle to square
     b[:, 2:] = b[:, 2:] * gain + pad  # box wh * gain + pad
     xyxy = xywh2xyxy(b).long()
     clip_coords(xyxy, im.shape)
-    # print(im.shape[1])
-    # print(((int(xyxy[0, 1]),int(im.shape[0])), (int(xyxy[0, 2]),0)))
-    # print(xyxy)
     if xyxy[0, 1] >600:
         cv2.rectangle(screen ,(int(xyxy[0, 0]),int(xyxy[0, 1]+40)), (int(xyxy[0, 2]),int(xyxy[0, 3])), (255,255,255), -1)
-
-    # elif xyxy[0, 1] <300:
-    #     cv2.rectangle(screen ,(int(xyxy[0, 0]),int(xyxy[0, 1]+30)), (int(xyxy[0, 2]),int(xyxy[0, 3])), (255,255,255), -1)
 
     else:
         cv2.rectangle(screen, (int(xyxy[0, 0]),int(xyxy[0, 1]+60)), (int(xyxy[0, 2]),int(xyxy[0, 3])), (255,255,255), -1)
 
 
-    #screen=screen[:,:780]
-    #cv2.rectangle(screen ,(int(xyxy[0, 1]),int(0), int(xyxy[0, 2]),im.shape[0]), (255,255,255), -1) 
-    #screen= cv2.warpPerspective( screen ,B,(im.shape[1],im.shape[0]))
-    # print("screen",screen.shape)
-    # print("im",im.shape)
-    # print((im.shape[1],im.shape[0]))
-    im = cv2.UMat(im)
+    im = cv2.UMat(im)#將圖片放進GPU處理
     crop = cv2.bitwise_and(im,screen)
     crop = cv2.warpPerspective(crop , B, (1000,830))
 
-    # crop=crop[110:,:]
-    #print((int(xyxy[0, 0]),int(xyxy[0, 1])), (int(xyxy[0, 2]),int(xyxy[0, 3])))
-    #crop = im[int(xyxy[0, 1]):int(xyxy[0, 3]), int(xyxy[0, 0]):int(xyxy[0, 2])]
-    #crop = im[:, int(xyxy[0, 0]):int(xyxy[0, 2])]
-    #crop = cv2.warpPerspective( crop ,B,(830,1000))
     if save:
         cv2.imwrite(str(increment_path(file, mkdir=True).with_suffix('.jpg')), crop)
-        #cv2.imwrite(str(increment_path(file, mkdir=True).with_suffix('.jpg')), im)
-    #print(crop.shape)
+
     return crop
 
 def save_one_box(xyxy, im, file='image.jpg', gain=1.02, pad=10, square=False, BGR=False, save=True):
