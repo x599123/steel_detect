@@ -18,119 +18,126 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 from utils.augmentations import letterbox
+
 FILE = Path(__file__).absolute()
 sys.path.append(FILE.parents[0].as_posix())  # add yolov5/ to path
 from models.experimental import attempt_load
 from utils.datasets import LoadStreams, LoadImages
 from utils.general import check_img_size, check_requirements, check_imshow, colorstr, non_max_suppression, \
-    apply_classifier, scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path, save_one_box,crop_one_box
+    apply_classifier, scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path, save_one_box, crop_one_box
 from utils.plots import colors, plot_one_box
 from utils.torch_utils import select_device, load_classifier, time_sync
-import time,os
+import time, os
 import requests
 import json
 from flask import Flask, render_template, Response
 from threading import Thread
-temp1=0
-temp2=0
-stat_list_sta=[]
-stat_list_cor=[]
-export_frame_in=[]
-export_frame_out=[]
-median_list=[]
-median_list1=[]
-loaded_list=[]
+
+temp1 = 0
+temp2 = 0
+stat_list_sta = []
+stat_list_cor = []
+export_frame_in = []
+export_frame_out = []
+median_list = []
+median_list1 = []
+loaded_list = []
 save_switch = True
 voting_switch = False
-web_out=[]
+web_out = []
 contour_threshold = 150
 alpha = 1.0
 beta = 0
 gamma = 1.0
-@torch.no_grad()
 
-def point_get_cor(ends,xy): # 畫線
+
+@torch.no_grad()
+def point_get_cor(ends, xy):  # 畫線
     d0, d1 = np.abs(np.diff(ends, axis=0))[0]
-    a0, a1 = np.abs(np.diff([ends[0],xy], axis=0))[0]
+    a0, a1 = np.abs(np.diff([ends[0], xy], axis=0))[0]
     if d0 < d1:
         slope = d0 / d1
-        if ends[0, 0] >ends[1, 0]:
-            return round(ends[0, 0]-(a1*slope)),ends[0, 1]+a1
+        if ends[0, 0] > ends[1, 0]:
+            return round(ends[0, 0] - (a1 * slope)), ends[0, 1] + a1
         else:
             return round(ends[0, 0] + (a1 * slope)), ends[0, 1] + a1
 
-def web_view():# Flask功能
+
+def web_view():  # Flask功能
     app = Flask(__name__)
-    global web_out,web_in ,save_switch
-    def get_image(): # 即時影像 影像處理
+    global web_out, web_in, save_switch
+
+    def get_image():  # 即時影像 影像處理
         while True:
-            jpeg = cv2.resize(web_out, (400, 490), interpolation=cv2.INTER_NEAREST)#resize 圖片400*490
-            ret, jpeg = cv2.imencode('.jpg', jpeg, [int(cv2.IMWRITE_JPEG_QUALITY), 50])#壓縮圖片至jpg 品質設定50%
-            jpeg = jpeg.tobytes()#轉換圖片至bytecode
+            jpeg = cv2.resize(web_out, (400, 490), interpolation=cv2.INTER_NEAREST)  # resize 圖片400*490
+            ret, jpeg = cv2.imencode('.jpg', jpeg, [int(cv2.IMWRITE_JPEG_QUALITY), 50])  # 壓縮圖片至jpg 品質設定50%
+            jpeg = jpeg.tobytes()  # 轉換圖片至bytecode
             yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + jpeg + b'\r\n')#return 圖片(generator型式)
+                   b'Content-Type: image/jpeg\r\n\r\n' + jpeg + b'\r\n')  # return 圖片(generator型式)
             time.sleep(0.03)  # my Firefox needs some time to display image / Chrome displays image without it
 
     @app.route("/")
-    def stream():# 即時影像
+    def stream():  # 即時影像
         return Response(get_image(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
     def one_image(wb):
-        jpeg = cv2.resize(wb, (400, 490), interpolation=cv2.INTER_NEAREST)#resize 圖片400*490
-        ret, jpeg = cv2.imencode('.jpg', jpeg)#壓縮圖片至jpg 品質設定50%
-        jpeg = jpeg.tobytes()#轉換圖片至bytecode
-        return jpeg#return 圖片
+        jpeg = cv2.resize(wb, (400, 490), interpolation=cv2.INTER_NEAREST)  # resize 圖片400*490
+        ret, jpeg = cv2.imencode('.jpg', jpeg)  # 壓縮圖片至jpg 品質設定50%
+        jpeg = jpeg.tobytes()  # 轉換圖片至bytecode
+        return jpeg  # return 圖片
 
     @app.route("/out")
-    def out():#return 標記後的圖片
+    def out():  # return 標記後的圖片
         return Response(one_image(web_out), mimetype="image/jpeg")
 
     @app.route("/in")
-    def webin():#return 標記前的圖片
+    def webin():  # return 標記前的圖片
         return Response(one_image(web_in), mimetype="image/jpeg")
 
     @app.route("/shutdown")
-    def shutdown():#關閉程式
-        os.system('ps -ef | grep detect_steel_light_stream.py| grep -v grep | awk \'{print $2}\' | xargs kill -9')#kill 自己本身
+    def shutdown():  # 關閉程式
+        os.system(
+            'ps -ef | grep detect_steel_light_stream.py| grep -v grep | awk \'{print $2}\' | xargs kill -9')  # kill 自己本身
         return Response('shutdown')
 
     @app.route("/savestatus")
-    def savestatus():#回傳存檔狀態
+    def savestatus():  # 回傳存檔狀態
         global save_switch
         # exit()
-        return Response(str(save_switch))#回傳存檔狀態
+        return Response(str(save_switch))  # 回傳存檔狀態
 
     @app.route("/saveon")
     def saveon():
         global save_switch
         # exit()
-        save_switch = True#存檔開關設開
-        return Response(str(save_switch))#回傳存檔狀態
+        save_switch = True  # 存檔開關設開
+        return Response(str(save_switch))  # 回傳存檔狀態
 
     @app.route("/saveoff")
     def saveoff():
         global save_switch
         # exit()
-        save_switch = False#存檔開關設關
-        return Response(str(save_switch))#回傳存檔狀態
-
+        save_switch = False  # 存檔開關設關
+        return Response(str(save_switch))  # 回傳存檔狀態
 
     app.run('0.0.0.0')
-def detect_steel_opencv(y1,img_ori, img ):#畫線算出偏移量
+
+
+def detect_steel_opencv(y1, img_ori, img):  # 畫線算出偏移量
     global contour_threshold, alpha, beta, gamma
     try:
-        res = cv2.convertScaleAbs(img, alpha=alpha, beta=beta)#補光alpha beta
-        lookUpTable = np.empty((1,256), np.uint8)
+        res = cv2.convertScaleAbs(img, alpha=alpha, beta=beta)  # 補光alpha beta
+        lookUpTable = np.empty((1, 256), np.uint8)
         for i in range(256):
-            lookUpTable[0,i] = np.clip(pow(i / 255.0, gamma) * 255.0, 0, 255)
+            lookUpTable[0, i] = np.clip(pow(i / 255.0, gamma) * 255.0, 0, 255)
 
         res = cv2.LUT(res, lookUpTable)
         opencv_start = time.process_time()
 
-        #cv2.imwrite('opencv_img.jpg',img)
-        img = cv2.cvtColor(res, cv2.COLOR_BGR2GRAY)
-        thresh = cv2.threshold(img, contour_threshold, 255, cv2.THRESH_BINARY)[1]
-        #cv2.imwrite('opencv_thresold.jpg', thresh)
+        # cv2.imwrite('opencv_img.jpg',img)
+        img = cv2.cvtColor(res, cv2.COLOR_BGR2GRAY)  # 圖片轉灰階
+        thresh = cv2.threshold(img, contour_threshold, 255, cv2.THRESH_BINARY)[1]  # 二值化 去背
+        # cv2.imwrite('opencv_thresold.jpg', thresh)
         contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contours = contours[0] if len(contours) == 2 else contours[1]
 
@@ -141,42 +148,44 @@ def detect_steel_opencv(y1,img_ori, img ):#畫線算出偏移量
 
         img = cv2.UMat.get(img)
         result = np.zeros_like(img)
-        #cv2.imwrite('opencv_result.jpg', result)
+        # cv2.imwrite('opencv_result.jpg', result)
         # print(big_contour.min())
-        cv2.drawContours(result, [big_contour], 0, (255,255,255), cv2.FILLED)
-        #cv2.imwrite('opencv_big_contour.jpg', result)
+        cv2.drawContours(result, [big_contour], 0, (255, 255, 255), cv2.FILLED)
+        # cv2.imwrite('opencv_big_contour.jpg', result)
         without_back = cv2.bitwise_and(img, result)
-        #cv2.imwrite('opencv_bitwise_and.jpg', without_back)
+        # cv2.imwrite('opencv_bitwise_and.jpg', without_back)
         img_raw = cv2.cvtColor(without_back, cv2.COLOR_GRAY2BGR)
         x_y_df = pd.DataFrame(big_contour[:, 0, :], columns=["x", "y"])
-        head_df =x_y_df['x'].loc[x_y_df['y'] <= x_y_df["y"].min()+2]
-        tail_df =x_y_df['x'].loc[x_y_df['y'] >= x_y_df["y"].max()-5]
-        points = np.array([[head_df.max(), x_y_df["y"].min()],[tail_df.max(),x_y_df["y"].max()],[tail_df.min(),x_y_df["y"].max()],[head_df.min(),x_y_df["y"].min()]], np.int32)
+        head_df = x_y_df['x'].loc[x_y_df['y'] <= x_y_df["y"].min() + 2]
+        tail_df = x_y_df['x'].loc[x_y_df['y'] >= x_y_df["y"].max() - 5]
+        points = np.array(
+            [[head_df.max(), x_y_df["y"].min()], [tail_df.max(), x_y_df["y"].max()], [tail_df.min(), x_y_df["y"].max()],
+             [head_df.min(), x_y_df["y"].min()]], np.int32)
         right_cor_area = np.array([points[0].reshape(2), points[1].reshape(2)])
         mid_cor_area = np.array([[round((head_df.max() + head_df.min()) / 2), x_y_df["y"].min()],
-                                        [round((tail_df.max() + tail_df.min()) / 2), x_y_df["y"].max()]])
+                                 [round((tail_df.max() + tail_df.min()) / 2), x_y_df["y"].max()]])
         abstract_list = []
         cor_list = []
         x_y_df = x_y_df.loc[x_y_df["y"] < (x_y_df["y"].max() - (x_y_df["y"].max() - x_y_df["y"].min()) / 4)]
-        contour_rights = np.array (x_y_df.sort_values(['x'], ascending=False).drop_duplicates(
+        contour_rights = np.array(x_y_df.sort_values(['x'], ascending=False).drop_duplicates(
             subset=['y']).sort_values(['y']))
         for contour_right in reversed(contour_rights):
             right_cordinate = point_get_cor(right_cor_area, contour_right)
             mid_cordinate = point_get_cor(mid_cor_area, contour_right)
             # print(contour_right[0],mid_cordinate[0])
-            if contour_right[0] > mid_cordinate[0] and  contour_right[0] - mid_cordinate[0] >12 :
+            if contour_right[0] > mid_cordinate[0] and contour_right[0] - mid_cordinate[0] > 12:
                 # print(contour_right[0], mid_cordinate[0])
                 cv2.circle(img_raw, tuple(mid_cordinate), 1, (0, 0, 255), 1)
                 cv2.circle(img_raw, tuple(contour_right), 1, (0, 0, 255), 1)
                 abstract_list.append(right_cordinate[0] - contour_right[0])
                 cor_list.append(contour_right)
-        points = points.reshape((-1,1,2))
+        points = points.reshape((-1, 1, 2))
         cv2.line(img_raw, tuple(points[0].reshape(2)), tuple(points[1].reshape(2)), (0, 255, 0), 1)
 
-        cv2.polylines(img_raw, pts=[points], isClosed=False, color=(0,0,255), thickness=1)
-        cv2.polylines(img_ori, pts=[points], isClosed=False, color=(0,0,255), thickness=1)
-        #cv2.imwrite('opencv_img_raw.jpg', img_raw)
-        #cv2.imwrite('opencv_img_ori.jpg', img_ori)
+        cv2.polylines(img_raw, pts=[points], isClosed=False, color=(0, 0, 255), thickness=1)
+        cv2.polylines(img_ori, pts=[points], isClosed=False, color=(0, 0, 255), thickness=1)
+        # cv2.imwrite('opencv_img_raw.jpg', img_raw)
+        # cv2.imwrite('opencv_img_ori.jpg', img_ori)
 
         # print(pathtowrite+"_contours.jpg")
 
@@ -191,13 +200,13 @@ def detect_steel_opencv(y1,img_ori, img ):#畫線算出偏移量
             # (pathtowrite + "_contours.jpg", img_raw)
             opencv_end = time.process_time()
             print("opencv執行時間單跟：%f 秒" % (opencv_end - opencv_start))
-            #cv2.imwrite('opencv_img_raw_num.jpg', img_raw)
-            #cv2.imwrite('opencv_img_ori_num.jpg', img_ori)
+            # cv2.imwrite('opencv_img_raw_num.jpg', img_raw)
+            # cv2.imwrite('opencv_img_ori_num.jpg', img_ori)
             # cv2.imshow("filter",img_raw)
             # cv2.imshow("filter_ori",img_ori)
             # cv2.waitKey(1)
-            steel_detect_result=return_value,img_raw
-            return return_value,img_raw
+            steel_detect_result = return_value, img_raw
+            return return_value, img_raw
         # (pathtowrite + "_contours.jpg", img_raw)
         opencv_end = time.process_time()
         print("opencv執行時間：%f 秒" % (opencv_end - opencv_start))
@@ -231,7 +240,6 @@ def run(weights='best.pt',  # model.pt path(s)
         half=False,  # use FP16 half-precision inference
         tfl_int8=False,  # INT8 quantized TFLite model
         ):
-
     save_img = not nosave and source.endswith('.mp4')  # save inference images
     webcam = source.isnumeric() or source.endswith('.txt') or source.lower().startswith(
         ('rtsp://', 'rtmp://', 'http://', 'https://'))
@@ -242,7 +250,6 @@ def run(weights='best.pt',  # model.pt path(s)
     voting_switch_list = []
     # Directories
     save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
-    # (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
 
     # Initialize
     set_logging()
@@ -303,16 +310,17 @@ def run(weights='best.pt',  # model.pt path(s)
     if pt and device.type != 'cpu':
         model(torch.zeros(1, 3, *imgsz).to(device).type_as(next(model.parameters())))  # run once
     t0 = time.time()
-    global temp1,temp2,stat_list_sta,stat_list_cor,export_frame_in,export_frame_out,web_in,web_out,save_switch, loaded_list, voting_switch
+    global temp1, temp2, stat_list_sta, stat_list_cor, export_frame_in, export_frame_out, web_in, web_out, save_switch, loaded_list, voting_switch
 
-    enum=0
+    enum = 0
 
     start = time.process_time()
-    for path, img, im0s,imoris, img_oris, vid_cap in dataset:#img是要餵給yolo辨識的預處理影像 img_oris為未裁切原圖
-        curve_steel_quntity=0
-        enum=enum+1
-        web_in = im0s[0]#im0s為透視轉換圖
-        web_out = imoris[0]#imoris為原圖裁切
+    # loadstream self.sources, img, img0, img_raw, img_ori, None
+    for path, img, im0s, imoris, img_oris, vid_cap in dataset:  # img是要餵給yolo辨識的預處理影像 img_oris為未裁切原圖
+        curve_steel_quntity = 0
+        enum = enum + 1
+        web_in = im0s[0]  # im0s為透視轉換圖
+        web_out = imoris[0]  # imoris為原圖裁切
         if onnx:
             img = img.astype('float32')
         else:
@@ -324,7 +332,7 @@ def run(weights='best.pt',  # model.pt path(s)
 
         # Inference
         t1 = time_sync()
-        if pt:#yolo推論 將圖片餵進AI模型
+        if pt:  # yolo推論 將圖片餵進AI模型
             # visualize = increment_path(save_dir / Path(path).stem, mkdir=True) if visualize else False
             pred = model(img, augment=augment, visualize=visualize)[0]
         elif onnx:
@@ -364,16 +372,18 @@ def run(weights='best.pt',  # model.pt path(s)
         for i, det in enumerate(pred):  # detections per image
 
             if webcam:  # batch_size >= 1
-                p, s, im0,imori ,img_ori,frame = path[i], f'{i}: ', im0s[i].copy(), imoris[i].copy(), img_oris[i].copy(), dataset.count
+                p, s, im0, imori, img_ori, frame = path[i], f'{i}: ', im0s[i].copy(), imoris[i].copy(), img_oris[
+                    i].copy(), dataset.count
+                # im0為透視轉換圖
+                # imori為原圖裁切
+                # img_ori為原圖
             else:
                 p, s, im0, frame = path, '', im0s.copy(), getattr(dataset, 'frame', 0)
 
             # cv2.imshow('imoris', img_ori)
             p = Path(p)  # to Path
             save_path = str(save_dir / p.name)  # img.jpg
-            txt_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # img.txt
             s += '%gx%g ' % img.shape[2:]  # print string
-            gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
             if len(det):
                 onum = 0
                 # Rescale boxes from img_size to im0 size
@@ -387,78 +397,84 @@ def run(weights='best.pt',  # model.pt path(s)
                 abstract_list = []
 
                 for *xyxy, conf, cls in reversed(det):
-                    list_xyxy = torch.tensor(xyxy).view(-1, 4)
+                    # 對yolo框出的每根鋼條做檢測演算
+                    list_xyxy = torch.tensor(xyxy).view(-1, 4)  # tensor轉list
                     if save_img or save_crop or view_img:  # Add bbox to image
                         if int(list_xyxy[:, 3]) > 800 and int(list_xyxy[:, 1]) < 710 and int(list_xyxy[:, 1]) > 430:
-                            steel_detect_result=0
-                            onum = onum+1
+                            steel_detect_result = 0
+                            onum = onum + 1
                             detect_run = True
-                            crop_img=crop_one_box(xyxy, im0, file=save_dir / 'crops' / f'{p.stem}_{enum}_{onum}.jpg', BGR=True,)
-                            #yolo框出鋼條取出單根影像
-                            #cv2.imwrite('opencv_imori.jpg', imori)
-                            steel_detect_result=detect_steel_opencv(int(list_xyxy[:, 1]),imori, crop_img)
-                            #單根鋼條餵入彎直檢測演算法
+                            crop_img = crop_one_box(xyxy, im0, file=save_dir / 'crops' / f'{p.stem}_{enum}_{onum}.jpg',
+                                                    BGR=True, )
+                            # yolo框出鋼條取出單根影像
+                            # cv2.imwrite('opencv_imori.jpg', imori)
+                            steel_detect_result = detect_steel_opencv(int(list_xyxy[:, 1]), imori, crop_img)
+                            # 單根鋼條餵入彎直檢測演算法
                             web_out = imori
                             # cv2.imshow('aav',steel_detect_result[1])
                             # cv2.waitKey(1)
                             if steel_detect_result:
                                 abstract_list.append(
                                     [int(list_xyxy[:, 0]), int(list_xyxy[:, 1]), steel_detect_result[0]])
+                                # 紀錄座標、鋼條偏移量、投票trigger
                             if int(list_xyxy[:, 1]) > 430:
                                 voting_switch_list.append(int(list_xyxy[:, 1]))
+                                # 離開辨識區累積投票trigger
                                 # print(voting_switch_list)
                 cv2.imshow('img_ori', imori)
             try:
                 if abstract_list:
                     loaded_list.append(abstract_list)
+                    # 儲存 紀錄座標、鋼條偏移量、投票trigger的list 例如若有五根鋼條abstract_list會累積五個
                 if len(loaded_list) <= 23:
                     steel_img_with_line = imori
                     steel_img = img_ori
+                    # 投票完會儲存照片，開始投票時圖片已經更新 因此要保留投票區間的圖片
             except:
                 pass
             # print(len(voting_switch_list))
 
             # print("loaded_list len:", len(loaded_list))
             # print("voting_switch_list len:", len(voting_switch_list))
-            if len(voting_switch_list)>=20  and len(loaded_list)>23 and len(abstract_list) == 0:
-                batch_num=batch_num+1
+            if len(voting_switch_list) >= 20 and len(loaded_list) > 23 and len(abstract_list) == 0:
+                # 當在辨識區trigger 離開辨識區trigger 滿足一批的數量 加上當前是離開辨識區的狀況 就會開始投票
+                batch_num = batch_num + 1
 
                 voting_start = time.process_time()
                 len_list = []
+
                 for q in loaded_list:
                     # print(len(i))
                     len_list.append(len(q))
-
+                # 計算每個frame有幾根鋼條
                 for h in loaded_list:
-                    # print(h)
+
                     if len(h) == max(set(len_list), key=len_list.count):
+                        # 找出第一個鋼條數量最常出現的frame 例如這批鋼條五根 找出第一個有五根鋼條的frame
                         first_list = sorted(h, key=lambda s: s[0])
                         break
-                # first_list = sorted(loaded_list[3], key=lambda s: s[0])
                 voting_list = []
-                # list_line{[x1,y1,bias]}
-
                 for list_line in loaded_list:
-                    temp_list = [0] * len(first_list)
-                    bad_contours_list = [0] * len(first_list)
-                    list_line = sorted(list_line, key=lambda s: s[0])
-                    # print(list_line)
+                    temp_list = [0] * len(first_list)  # 建立狀態list [0,0,0,0,0]
+                    bad_contours_list = [0] * len(first_list)  # 建立狀態list [0,0,0,0,0]
+                    list_line = sorted(list_line, key=lambda s: s[0])  # 依照y做排序
                     try:
                         for g, j in enumerate(list_line):
-                            if abs(j[0] - first_list[g][0]) > 50:
+                            if abs(j[0] - first_list[g][0]) > 50:  # 取得鋼條垂直巨大於50要特別小心 常常框錯
+                                # j[0] y j[1] x j[2] bias
                                 for num, first_list_x in enumerate(first_list):
                                     # print(j[0], first_list_x[0])
-                                    if abs(j[0] - first_list_x[0]) < 50:
+                                    if abs(j[0] - first_list_x[0]) < 50:  # 取得鋼條水平距離小於50
                                         temp_list[num] = [j[2], j[1]]
                             else:
-                                temp_list[g] = [j[2], j[1]]
-                    except :
+                                temp_list[g] = [j[2], j[1]]  # 轉存鋼鐵偏移量 鋼鐵x座標
+                    except:
                         pass
                     voting_list.append(temp_list)
                 # voting_list{[bias,y1]}
-                temp_list = [0] * len(first_list)
-                temp_list_total = [0] * len(first_list)
-                temp_list_bias = [0] * len(first_list)
+                temp_list = [0] * len(first_list)  # 每個位置鋼條狀態 彎的數量
+                temp_list_total = [0] * len(first_list)  # 每個位置總共鋼條數
+                temp_list_bias = [0] * len(first_list)  # 每個位置鋼條偏移量
                 # print(voting_list)
                 for voting_line in voting_list:
                     # print(voting_line)
@@ -483,31 +499,32 @@ def run(weights='best.pt',  # model.pt path(s)
                     if curve_quantity > temp_list_total[steel_number] / 20:
                         # print(steel_number + 1, "cu", temp_list_bias[steel_number], curve_quantity,
                         #       temp_list_total[steel_number])
-                        curve_steel_quntity = curve_steel_quntity + 1
-                        total_curve_quantity =  total_curve_quantity + 1
-                        steel_detail = f'{steel_detail}_{steel_number + 1}_cu_{temp_list_bias[steel_number]}'
+                        curve_steel_quntity = curve_steel_quntity + 1  # log記錄一批幾隻彎的鐵
+                        total_curve_quantity = total_curve_quantity + 1  # log記錄從程式開始至今幾隻彎的鐵
+                        steel_detail = f'{steel_detail}_{steel_number + 1}_cu_{temp_list_bias[steel_number]}'  # 檔名製造
                         send_steel_status = send_steel_status + '1'
                         folder_name = folder_name + "_" + str(steel_number + 1) + "th" + "_" + "cu"
                     else:
                         steel_detail = f'{steel_detail}_{steel_number + 1}_ok_{temp_list_bias[steel_number]}'
-                        total_ok_quntity = total_ok_quntity + 1
-                        send_steel_status = send_steel_status + '0'
-                        folder_name = folder_name + "_" + str(steel_number + 1) + "th" + "_" + "ok"
+                        total_ok_quntity = total_ok_quntity + 1  # log記錄一批幾隻好的鐵
+                        send_steel_status = send_steel_status + '0'  # log記錄從程式開始至今幾隻好的鐵
+                        folder_name = folder_name + "_" + str(steel_number + 1) + "th" + "_" + "ok"  # 檔名製造
                 localtime = str(time.strftime("%Y%m%d_%H%M%S", time.localtime()))
                 end = time.process_time()
-                steel_log="source: "+str(source.split("\\")[-1]).strip(".mp4")+'\n'
-                steel_log=steel_log+"How_many_steel_in_this_batch: "+str(len(temp_list_total))+'\n'
-                steel_log=steel_log+"yolo_detection_quntity: "+str(len(loaded_list))+'\n'
-                steel_log=steel_log+"steel_quantity_list: "+str(temp_list_total)+'\n'
-                steel_log=steel_log+"curve_list: "+str(temp_list)+'\n'
-                steel_log=steel_log+"ok_list: "+str([temp_list_total[i] - temp_list[i] for i in range(len(temp_list_total))])+'\n'
-                steel_log=steel_log+"bad_contours_list: "+str(bad_contours_list)+'\n'
-                steel_log=steel_log+"curve_steel_quntity:"+str(curve_steel_quntity)+'\n'
-                steel_log=steel_log+"steel_detail:"+steel_detail+'\n'
-                steel_log=steel_log+"cost_time_batch：%f s" % (end - start)+'\n'
-                steel_log=steel_log+f'Filename: {localtime}{steel_detail}_{alpha}_{beta}_{gamma}_{contour_threshold}_withlines.jpg'+'\n'
-                steel_log=steel_log+f"Alpha: {alpha} Beat:{beta} Gamma :{gamma} Thresold: {contour_threshold}"+'\n'
-                steel_log=steel_log+"------------------------------------"+'\n'
+                steel_log = "source: " + str(source.split("\\")[-1]).strip(".mp4") + '\n'
+                steel_log = steel_log + "How_many_steel_in_this_batch: " + str(len(temp_list_total)) + '\n'
+                steel_log = steel_log + "yolo_detection_quntity: " + str(len(loaded_list)) + '\n'
+                steel_log = steel_log + "steel_quantity_list: " + str(temp_list_total) + '\n'
+                steel_log = steel_log + "curve_list: " + str(temp_list) + '\n'
+                steel_log = steel_log + "ok_list: " + str(
+                    [temp_list_total[i] - temp_list[i] for i in range(len(temp_list_total))]) + '\n'
+                steel_log = steel_log + "bad_contours_list: " + str(bad_contours_list) + '\n'
+                steel_log = steel_log + "curve_steel_quntity:" + str(curve_steel_quntity) + '\n'
+                steel_log = steel_log + "steel_detail:" + steel_detail + '\n'
+                steel_log = steel_log + "cost_time_batch：%f s" % (end - start) + '\n'
+                steel_log = steel_log + f'Filename: {localtime}{steel_detail}_{alpha}_{beta}_{gamma}_{contour_threshold}_withlines.jpg' + '\n'
+                steel_log = steel_log + f"Alpha: {alpha} Beat:{beta} Gamma :{gamma} Thresold: {contour_threshold}" + '\n'
+                steel_log = steel_log + "------------------------------------" + '\n'
                 data = {"Total_photo": 0,
                         "Use_photo": 0,
                         "Total_steel": str(len(temp_list_total)),
@@ -518,9 +535,11 @@ def run(weights='best.pt',  # model.pt path(s)
                 # req = requests.post('http://127.0.0.1:8080/steel/save_steel_log/', data=json.dumps(data), verify=False)
                 # print(req.status_code)
                 # print(req.json())
+                # 傳出json post
                 folder1 = "./steel_detect_n/outimage/" + localtime + folder_name
+                # 儲存log
                 with open(r'statics.txt', 'a+') as f:
-                    f.write(steel_log+'\n')
+                    f.write(steel_log + '\n')
                 if curve_steel_quntity == 4:
                     with open(r'statics_try_argument.txt', 'a+') as f:
                         f.write(steel_log + '\n')
@@ -529,14 +548,17 @@ def run(weights='best.pt',  # model.pt path(s)
                         f.write(steel_log + '\n')
                 print(steel_log)
                 print(f'{save_dir}{localtime}{steel_detail}')
+                # 建立狀態以及時間資料夾
                 if not os.path.exists(folder1):
                     os.mkdir(folder1)
                 if save_switch:
-                    cv2.imwrite(f'{folder1}/{localtime}{steel_detail}_{alpha}_{beta}_{gamma}_{contour_threshold}_withlines.jpg', steel_img_with_line)
+                    cv2.imwrite(
+                        f'{folder1}/{localtime}{steel_detail}_{alpha}_{beta}_{gamma}_{contour_threshold}_withlines.jpg',
+                        steel_img_with_line)
                     cv2.imwrite(f'{folder1}/{localtime}{steel_detail}_raw.jpg', steel_img)
 
-                loaded_list = []
-                voting_switch_list=[]
+                loaded_list = []  # 復歸紀錄list
+                voting_switch_list = []  # 復歸投票紀錄list
                 voting_end = time.process_time()
                 print("voting_cost：%f 秒" % (voting_end - voting_start))
                 start = time.process_time()
@@ -547,40 +569,21 @@ def run(weights='best.pt',  # model.pt path(s)
 
             print(f'{s}Done. ({t2 - t1:.3f}s)')
             ## Save results (image with detections)
-            if save_img:
 
-                    if vid_path[i] != save_path:  # new video
-                        vid_path[i] = save_path
-                        if isinstance(vid_writer[i], cv2.VideoWriter):
-                            vid_writer[i].release()  # release previous video writer
-                        if vid_cap:  # video
-                            fps = vid_cap.get(cv2.CAP_PROP_FPS)
-                            w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                            h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                            print(fps,w,h)
-                        else:  # stream
-                            fps, w, h = 30, im0.shape[1], im0.shape[0]
-                            save_path += '.mp4'
-                    end = time.process_time()
-                    # print("執行時間：%f 秒" % (end - start))
-    if save_txt or save_img:
-        s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
-        print(f"Results saved to {colorstr('bold', save_dir)}{s}")
-
-    if update:
-        strip_optimizer(weights)  # update model (to fix SourceChangeWarning)
     print(f'Done. ({time.time() - t0:.3f}s)')
     # print('Thread')
     with open(r'statics_total.txt', 'a+') as f:
         f.write(f"total imference frame {enum} \n")
         f.write(f"ok {total_ok_quntity} \n")
         f.write(f"curve{total_curve_quantity}\n")
+    # 紀錄影片辨識結束的log
 
 
 def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', nargs='+', type=str, default='steel_detect_n/20220311.pt', help='model.pt path(s)')
-    parser.add_argument('--source', type=str, default='steel_detect_n/03101453_reverse-.mp4', help='file/dir/URL/glob, 0 for webcam')
+    parser.add_argument('--source', type=str, default='steel_detect_n/03101453_reverse-.mp4',
+                        help='file/dir/URL/glob, 0 for webcam')
     parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640], help='inference size h,w')
     parser.add_argument('--conf-thres', type=float, default=0.5, help='confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.65, help='NMS IoU threshold')
@@ -629,4 +632,3 @@ class steel_detect:
         t1 = Thread(target=web_view, args=())
         t1.start()
         main(opt)
-

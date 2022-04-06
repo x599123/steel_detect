@@ -274,15 +274,15 @@ class LoadWebcam:  # for inference
     def __len__(self):
         return 0
 
-class LoadStreams:  # multiple IP or RTSP cameras
+class LoadStreams:  # multiple IP or RTSP cameras 即時辨識class
     def __init__(self, sources='streams.txt', img_size=640, stride=32, auto=True):
         self.mode = 'stream'
         self.img_size = img_size
         self.stride = stride
         sources = [sources]
-        pts1 = np.float32([[428, 0], [551, 0], [169, 974], [695, 973]])
-        pts2 = np.float32([[75, 0], [632, 0], [253, 1000], [700, 1000]])
-        self.perspective_matrix = cv2.getPerspectiveTransform(pts1, pts2)
+        pts1 = np.float32([[428, 0], [551, 0], [169, 974], [695, 973]])#4個透視轉換點 轉換前
+        pts2 = np.float32([[75, 0], [632, 0], [253, 1000], [700, 1000]])#4個透視轉換點 轉換後
+        self.perspective_matrix = cv2.getPerspectiveTransform(pts1, pts2)#生成透視轉換矩陣
         # n = 1
         n = len(sources)
         self.imgs, self.imgs_ori,self.imgs_raw,self.fps, self.frames, self.threads = [None] * n,[None] * n,[None] * n, [0] * n, [0] * n, [None] * n
@@ -296,7 +296,7 @@ class LoadStreams:  # multiple IP or RTSP cameras
                 import pafy
                 s = pafy.new(s).getbest(preftype="mp4").url  # YouTube URL
             s = eval(s) if s.isnumeric() else s  # i.e. s = '0' local webcam
-            cap = cv2.VideoCapture(s)
+            cap = cv2.VideoCapture(s)#建立影像擷取物件
             assert cap.isOpened(), f'Failed to open {s}'
             w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -325,11 +325,11 @@ class LoadStreams:  # multiple IP or RTSP cameras
             if n % read == 0:
                 success, im = cap.retrieve()
                 if success:
-                    self.imgs_ori[i] = im.copy()
+                    self.imgs_ori[i] = im.copy()#原影像
 
-                    im = im[60:1080, 250:950]
+                    im = im[60:1080, 250:950]#原影像裁切
                     self.imgs_raw[i] = im.copy()
-                    im = cv2.warpPerspective(im, self.perspective_matrix, (830, 1000))
+                    im = cv2.warpPerspective(im, self.perspective_matrix, (830, 1000))#原影像作透視轉換
                     self.imgs[i] = im
 
                 else :self.imgs[i] * 0
@@ -353,7 +353,7 @@ class LoadStreams:  # multiple IP or RTSP cameras
         img_ori = self.imgs_ori.copy()
 
         img = [letterbox(x, self.img_size, stride=self.stride, auto=self.rect and self.auto)[0] for x in img0]
-
+        #letterbox 將未滿640*640 填滿圖片成640*640
         # Stack
         img = np.stack(img, 0)
 
